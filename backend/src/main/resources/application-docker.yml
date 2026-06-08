@@ -1,0 +1,11 @@
+# Used when SPRING_PROFILES_ACTIVE=docker (Docker Compose)
+spring:
+  neo4j:
+    uri: ${NEO4J_URI:bolt://neo4j:7687}
+    authentication:
+      username: ${NEO4J_USERNAME:neo4j}
+      password: ${NEO4J_PASSWORD:newsgraph}
+
+newsgraph:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}

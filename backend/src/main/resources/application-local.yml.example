@@ -1,0 +1,18 @@
+# Copy to application-local.yml and fill in your Aura credentials.
+# application-local.yml is gitignored — never commit real passwords.
+
+spring:
+  neo4j:
+    uri: neo4j+s://YOUR_INSTANCE.databases.neo4j.io
+    authentication:
+      username: YOUR_USERNAME
+      password: YOUR_PASSWORD
+  data:
+    neo4j:
+      database: YOUR_DATABASE
+
+# Must be at root level — NOT under spring:
+newsgraph:
+  gemini:
+    api-key: YOUR_GEMINI_API_KEY
+    model: gemini-2.5-flash-lite
