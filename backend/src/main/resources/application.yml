@@ -17,7 +17,6 @@ server:
 newsgraph:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
-  gemini:
-    api-key: ${GEMINI_API_KEY:}
-    model: ${GEMINI_MODEL:gemini-2.5-flash-lite}
-    base-url: https://generativelanguage.googleapis.com/v1beta
+  extractor:
+    target: ${EXTRACTOR_TARGET:localhost:50051}
+    deadline-seconds: ${EXTRACTOR_DEADLINE_SECONDS:600}

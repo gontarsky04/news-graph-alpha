@@ -8,7 +8,7 @@ export const TYPE_COLORS: Record<string, string> = {
   Topic: "#d946ef",
 };
 
-export const RELEVANCY_THRESHOLD = 20;
+export const RELEVANCY_THRESHOLD = 0;
 
 export function getNodeColor(type: string): string {
   return TYPE_COLORS[type] ?? "#94a3b8";

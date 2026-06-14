@@ -193,7 +193,7 @@ export default function Graph({
         nodes={nodes}
         edges={edges}
         theme={newsGraphTheme}
-        layoutType="forceatlas2"
+        layoutType="radialOut2d"
         labelType="auto"
         edgeLabelPosition="natural"
         edgeInterpolation="curved"

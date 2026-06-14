@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package newsgraph.v1;
+
+option java_package = "com.newsgraph.grpc";
+option java_multiple_files = true;
+option java_outer_classname = "ExtractorProto";
+
+// The Python extractor service owns extraction + entity linking + writing
+// entities/relationships/MENTIONS to Neo4j. Spring owns the Article node
+// (status/body/tags/counts) and all graph reads for the UI.
+service Extractor {
+  // Run the full pipeline for one already-created Article node:
+  //   preprocess -> LLM extraction -> entity linking -> persist entities,
+  //   relationships and (:Article)-[:MENTIONS]->(:Entity) edges.
+  // The Article node identified by `article_id` must already exist in Neo4j;
+  // the extractor never creates or mutates Article-node properties.
+  rpc ProcessArticle (ProcessArticleRequest) returns (ProcessArticleResponse);
+}
+
+message ProcessArticleRequest {
+  string article_id     = 1; // minted by Spring (e.g. ART_001); the Article node must already exist
+  string title          = 2;
+  string text           = 3; // article body
+  string url            = 4; // optional (maps to InputArticle.url / source)
+  string author         = 5; // optional
+  string date_published = 6; // optional, ISO-8601 or partial (YYYY / YYYY-MM)
+}
+
+message ProcessArticleResponse {
+  int32  entities_created      = 1;
+  int32  entities_auto_merged  = 2;
+  int32  entities_llm_merged   = 3;
+  int32  relationships_written = 4;
+  int32  mentions_written      = 5;
+  double elapsed_seconds       = 6;
+}

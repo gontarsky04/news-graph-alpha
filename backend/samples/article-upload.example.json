@@ -1,8 +1,0 @@
-{
-  "title": "Example headline",
-  "source": "https://example.com/article",
-  "author": "Jane Doe",
-  "date": "2026-03-15",
-  "body": "Full article text goes here. The AI will extract persons, organizations, locations, events, topics and their relationships from this field.",
-  "tags": ["politics", "diplomacy"]
-}

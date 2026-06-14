@@ -66,14 +66,23 @@ export const ENTITY_TYPES = [
   "Article",
 ] as const;
 
+// Vocabulary emitted by the extractor service (see extractor REL_DIRECTIONS).
 export const RELATIONSHIP_TYPES = [
-  "MENTIONS",
+  "AUTHORED_BY",
   "PUBLISHED_BY",
-  "LEADS",
-  "MEMBER_OF",
-  "PARTICIPATED_IN",
-  "ORGANIZED",
+  "CITES_SOURCE",
+  "MENTIONS",
   "MET_WITH",
+  "CRITICIZED",
+  "SUPPORTED",
+  "APPOINTED",
+  "MEMBER_OF",
+  "LEADS",
+  "PARTICIPATED_IN",
   "TOOK_PLACE_IN",
-  "RELATED_TO",
+  "CAUSED",
+  "PRECEDED_BY",
+  "ADDRESSED",
+  "SUBTOPIC_OF",
+  "IS_IN",
 ] as const;

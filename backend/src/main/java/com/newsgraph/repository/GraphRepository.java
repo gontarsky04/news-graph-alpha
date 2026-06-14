@@ -1,7 +1,5 @@
 package com.newsgraph.repository;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
 import com.newsgraph.dto.ArticleResponse;
 import com.newsgraph.dto.ArticleUploadRequest;
 import com.newsgraph.dto.GraphNodeDto;
@@ -14,9 +12,7 @@ import org.neo4j.driver.Values;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -27,11 +23,9 @@ public class GraphRepository {
 	private static final Pattern ARTICLE_ID_PATTERN = Pattern.compile("ART_(\\d+)");
 
 	private final Supplier<Session> sessionSupplier;
-	private final ObjectMapper objectMapper;
 
-	public GraphRepository(Supplier<Session> sessionSupplier, ObjectMapper objectMapper) {
+	public GraphRepository(Supplier<Session> sessionSupplier) {
 		this.sessionSupplier = sessionSupplier;
-		this.objectMapper = objectMapper;
 	}
 
 	public String nextArticleId() {
@@ -51,7 +45,7 @@ public class GraphRepository {
 		}
 	}
 
-	public void saveArticle(String id, ArticleUploadRequest request, ProcessingStatus status) {
+	public void saveArticle(String id, ArticleUploadRequest request, String sourceTextHash, ProcessingStatus status) {
 		try (Session session = sessionSupplier.get()) {
 			session.run("""
 					CREATE (a:Article {
@@ -64,6 +58,7 @@ public class GraphRepository {
 					  body: $body,
 					  tags: $tags,
 					  status: $status,
+					  source_text_hash: $hash,
 					  createdAt: datetime($createdAt)
 					})
 					""", Values.parameters(
@@ -75,8 +70,24 @@ public class GraphRepository {
 					"body", request.body(),
 					"tags", request.tags() != null ? request.tags() : List.of(),
 					"status", status.name(),
+					"hash", sourceTextHash,
 					"createdAt", Instant.now().toString()
 			));
+		}
+	}
+
+	/** Returns the id of an Article with this content hash, or null. Backs upload dedup. */
+	public String findArticleIdByHash(String sourceTextHash) {
+		try (Session session = sessionSupplier.get()) {
+			return session.run("""
+					MATCH (a:Article {source_text_hash: $hash})
+					RETURN a.id AS id
+					LIMIT 1
+					""", Values.parameters("hash", sourceTextHash))
+					.list(record -> record.get("id").asString())
+					.stream()
+					.findFirst()
+					.orElse(null);
 		}
 	}
 
@@ -160,63 +171,6 @@ public class GraphRepository {
 		}
 	}
 
-	public String loadExistingNodesJson() {
-		try (Session session = sessionSupplier.get()) {
-			List<Map<String, Object>> nodes = session.run("""
-					MATCH (n)
-					WHERE n:Person OR n:Organization OR n:Location OR n:Event OR n:Topic OR n:Article
-					RETURN labels(n) AS labels, properties(n) AS props
-					""")
-					.list(record -> {
-						Map<String, Object> node = new HashMap<>(record.get("props").asMap(Value::asObject));
-						List<Object> labels = record.get("labels").asList(Value::asString);
-						if (!labels.isEmpty()) {
-							node.putIfAbsent("label", labels.get(0));
-						}
-						return node;
-					});
-
-			try {
-				return objectMapper.writeValueAsString(nodes);
-			}
-			catch (JacksonException ex) {
-				throw new IllegalStateException("Failed to serialize existing nodes", ex);
-			}
-		}
-	}
-
-	public int mergeNode(String label, Map<String, Object> properties) {
-		if (properties.get("id") == null) {
-			return 0;
-		}
-
-		Map<String, Object> props = new HashMap<>(properties);
-		props.putIfAbsent("label", label);
-		String id = props.remove("id").toString();
-
-		try (Session session = sessionSupplier.get()) {
-			session.run(
-					"MERGE (n:" + label + " {id: $id}) SET n += $props",
-					Values.parameters("id", id, "props", props)
-			);
-			return 1;
-		}
-	}
-
-	public int mergeRelationship(String from, String to, String type, String context) {
-		try (Session session = sessionSupplier.get()) {
-			session.run(
-					"""
-					MATCH (a {id: $from}), (b {id: $to})
-					MERGE (a)-[r:%s]->(b)
-					SET r.context = $context
-					""".formatted(type),
-					Values.parameters("from", from, "to", to, "context", context)
-			);
-			return 1;
-		}
-	}
-
 	private ArticleResponse toArticleResponse(org.neo4j.driver.types.Node node) {
 		return new ArticleResponse(
 				node.get("id").asString(),
@@ -262,7 +216,7 @@ public class GraphRepository {
 					WITH n, labels(n)[0] AS nodeLabel, count(a) AS mentions
 					RETURN n.id AS id,
 					       nodeLabel AS label,
-					       coalesce(n.name, n.title, n.id) AS name,
+					       coalesce(n.canonical_name, n.name, n.title, n.id) AS name,
 					       nodeLabel AS type,
 					       CASE
 					         WHEN nodeLabel = 'Article' THEN 30

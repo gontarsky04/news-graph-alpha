@@ -1,42 +1,42 @@
 package com.newsgraph.service;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
-import com.newsgraph.ai.GeminiClient;
+import com.newsgraph.ai.ExtractorClient;
 import com.newsgraph.dto.ArticleResponse;
 import com.newsgraph.dto.ArticleUploadRequest;
-import com.newsgraph.dto.ExtractionResult;
 import com.newsgraph.exception.ExtractionException;
+import com.newsgraph.grpc.ProcessArticleResponse;
 import com.newsgraph.model.ProcessingStatus;
 import com.newsgraph.repository.GraphRepository;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class ArticleService {
 
 	private final GraphRepository graphRepository;
-	private final GeminiClient geminiClient;
-	private final GraphPersistenceService graphPersistenceService;
-	private final ObjectMapper objectMapper;
+	private final ExtractorClient extractorClient;
 
-	public ArticleService(
-			GraphRepository graphRepository,
-			GeminiClient geminiClient,
-			GraphPersistenceService graphPersistenceService,
-			ObjectMapper objectMapper
-	) {
+	public ArticleService(GraphRepository graphRepository, ExtractorClient extractorClient) {
 		this.graphRepository = graphRepository;
-		this.geminiClient = geminiClient;
-		this.graphPersistenceService = graphPersistenceService;
-		this.objectMapper = objectMapper;
+		this.extractorClient = extractorClient;
 	}
 
 	public ArticleResponse uploadAndProcess(ArticleUploadRequest request) {
+		// Content-hash dedup (the strategy the PoC pipeline used internally,
+		// now owned by Spring since it owns the Article node).
+		String hash = sha256(request.body());
+		String existingId = graphRepository.findArticleIdByHash(hash);
+		if (existingId != null) {
+			return graphRepository.findArticleById(existingId);
+		}
+
 		String articleId = graphRepository.nextArticleId();
-		graphRepository.saveArticle(articleId, request, ProcessingStatus.PROCESSING);
+		graphRepository.saveArticle(articleId, request, hash, ProcessingStatus.PROCESSING);
 		return runExtraction(articleId, request);
 	}
 
@@ -64,17 +64,14 @@ public class ArticleService {
 		graphRepository.updateArticleStatus(articleId, ProcessingStatus.PROCESSING, null, 0, 0);
 
 		try {
-			String existingNodes = graphRepository.loadExistingNodesJson();
-			String articlePayload = buildArticlePayload(articleId, request);
-			ExtractionResult extraction = geminiClient.extract(existingNodes, articlePayload);
-			GraphPersistenceService.PersistenceSummary summary = graphPersistenceService.persist(extraction);
-
+			ProcessArticleResponse result = extractorClient.process(articleId, request);
+			int nodesCreated = result.getEntitiesCreated();
 			graphRepository.updateArticleStatus(
 					articleId,
 					ProcessingStatus.DONE,
 					null,
-					summary.nodesCreated(),
-					summary.relationshipsCreated()
+					nodesCreated,
+					result.getRelationshipsWritten()
 			);
 		}
 		catch (ExtractionException ex) {
@@ -96,19 +93,14 @@ public class ArticleService {
 		);
 	}
 
-	private String buildArticlePayload(String articleId, ArticleUploadRequest request) {
+	private static String sha256(String text) {
 		try {
-			return objectMapper.writeValueAsString(Map.of(
-					"id", articleId,
-					"title", request.title(),
-					"source", request.source() != null ? request.source() : "",
-					"author", request.author() != null ? request.author() : "",
-					"date", request.date() != null ? request.date() : "",
-					"body", request.body()
-			));
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			byte[] hash = digest.digest((text != null ? text : "").getBytes(StandardCharsets.UTF_8));
+			return HexFormat.of().formatHex(hash);
 		}
-		catch (JacksonException ex) {
-			throw new IllegalStateException("Failed to build article payload", ex);
+		catch (NoSuchAlgorithmException ex) {
+			throw new IllegalStateException("SHA-256 not available", ex);
 		}
 	}
 }

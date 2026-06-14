@@ -9,7 +9,7 @@ export const ACCENT = "#38bdf8";
 export const newsGraphTheme: Theme = {
   canvas: {
     background: "#0b1120",
-    fog: "#0b1120",
+    fog: "#ffffff",
   },
   node: {
     fill: "#64748b",

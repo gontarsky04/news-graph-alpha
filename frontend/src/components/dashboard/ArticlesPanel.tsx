@@ -54,8 +54,8 @@ export default function ArticlesPanel({
       </div>
 
       <p className="panel-hint">
-        Wybierz plik JSON z folderu <code>samples/</code> w backendzie (pole{" "}
-        <code>title</code>, <code>body</code> itd.). Możesz wgrać kilka plików naraz.
+        Wgraj plik JSON z artykułem lub listą artykułów (pola <code>title</code>,{" "}
+        <code>body</code> itd.). Możesz też wybrać kilka plików naraz.
       </p>
 
       <div className="panel-grid">

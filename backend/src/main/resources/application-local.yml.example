@@ -13,6 +13,7 @@ spring:
 
 # Must be at root level — NOT under spring:
 newsgraph:
-  gemini:
-    api-key: YOUR_GEMINI_API_KEY
-    model: gemini-2.5-flash-lite
+  extractor:
+    # host:port of the Python gRPC extractor service
+    target: localhost:50051
+    deadline-seconds: 600

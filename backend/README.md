@@ -6,7 +6,8 @@ Java Spring Boot API for NewsGraph.
 
 - JDK 21+
 - Neo4j (Docker Compose includes one, or use Neo4j Aura)
-- Gemini API key
+- The Python **extractor** gRPC service running (see `../extractor/`); the
+  backend calls it for extraction + entity linking
 
 ## Quick start (local)
 
@@ -16,7 +17,8 @@ Java Spring Boot API for NewsGraph.
    cp src/main/resources/application-local.yml.example src/main/resources/application-local.yml
    ```
 
-2. Fill in Neo4j Aura + Gemini credentials.
+2. Fill in Neo4j Aura credentials. The extractor target defaults to
+   `localhost:50051` (override with `newsgraph.extractor.target`).
 
 3. Run:
 
@@ -36,15 +38,17 @@ Java Spring Boot API for NewsGraph.
 
 Run `../scripts/neo4j-init.cypher` once in Neo4j Browser (Aura or local).
 
-## Sample articles
+## Uploading an article
 
-JSON files in `samples/` — upload via the frontend or:
+Upload via the frontend, or post an article JSON directly:
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/articles" `
   -ContentType "application/json" `
-  -Body (Get-Content "samples/article-upload.example.json" -Raw)
+  -Body (Get-Content "article.json" -Raw)
 ```
+
+The body needs `title` and `body`; `source`, `author`, `date`, `tags` are optional.
 
 ## Docker
 
@@ -58,6 +62,6 @@ Built via root `docker-compose.yml` — uses profile `docker` and `application-d
 | `NEO4J_USERNAME` | Neo4j username |
 | `NEO4J_PASSWORD` | Neo4j password |
 | `NEO4J_DATABASE` | Database name |
-| `GEMINI_API_KEY` | Google Gemini API key |
-| `GEMINI_MODEL` | Default `gemini-2.5-flash-lite` |
+| `EXTRACTOR_TARGET` | extractor gRPC host:port (e.g. `extractor:50051`) |
+| `EXTRACTOR_DEADLINE_SECONDS` | per-article gRPC deadline (default `120`) |
 | `CORS_ALLOWED_ORIGINS` | Frontend URL(s) |

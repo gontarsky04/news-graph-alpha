@@ -56,14 +56,29 @@ export default function DashboardPage() {
       setError(null);
       try {
         let lastError: string | null = null;
+
+        // Each file may hold a single article object or an array of them.
+        const articles: ArticleUpload[] = [];
         for (const file of files) {
-          const payload = JSON.parse(await file.text()) as ArticleUpload;
           try {
-            await uploadArticle(payload);
+            const parsed = JSON.parse(await file.text());
+            const items = Array.isArray(parsed) ? parsed : [parsed];
+            articles.push(...(items as ArticleUpload[]));
+          } catch {
+            lastError = `Invalid JSON in ${file.name}`;
+          }
+        }
+
+        // Upload sequentially: each article links against the graph built by
+        // the previous ones, so concurrent uploads would race on dedup.
+        for (const article of articles) {
+          try {
+            await uploadArticle(article);
           } catch (err) {
             lastError = err instanceof Error ? err.message : "Upload failed";
           }
         }
+
         await refreshArticles();
         setTab("articles");
         if (lastError) setError(lastError);
@@ -157,8 +172,8 @@ export default function DashboardPage() {
       {uploading || retryingId ? (
         <div className="banner banner--info">
           {retryingId
-            ? "Ponowne przetwarzanie artykułu przez Gemini…"
-            : "Wysyłanie do Gemini i zapis do Neo4j… (może potrwać do minuty na artykuł)"}
+            ? "Ponowne przetwarzanie artykułu…"
+            : "Ekstrakcja i linkowanie encji, zapis do Neo4j… (może potrwać do minuty na artykuł)"}
         </div>
       ) : null}
 
