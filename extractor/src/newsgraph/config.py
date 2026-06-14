@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # Entity linking thresholds
     auto_merge_threshold: float = Field(default=0.88)
     disambiguate_threshold: float = Field(default=0.70)
+    # Minimum surname similarity (rapidfuzz.ratio, 0..100) for two PERSON
+    # mentions to be considered the same person. Below this the surnames are
+    # treated as distinct (e.g. "Trump" vs "Tusk") and the name score is capped,
+    # so a shared given name alone can no longer trigger a merge. Tuned to allow
+    # Polish inflection ("Tuska" vs "Tusk" ~= 89) while rejecting real mismatches.
+    surname_match_min: float = Field(default=85.0)
     # Lucene fuzzy term factor (0..1), appended as `~FACTOR` per term
     lucene_fuzzy_factor: float = Field(default=0.75)
     top_k_candidates: int = Field(default=5)

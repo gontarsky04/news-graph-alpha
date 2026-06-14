@@ -4,9 +4,12 @@ For every extracted mention we:
 
 1. Pull top-k candidates from the Lucene fulltext index (fuzzy, inflection-friendly).
 2. Pull top-k candidates from the vector index (MMLW embeddings, semantic).
-3. Fuse the two lists via Reciprocal Rank Fusion.
-4. Rerank the top-N by `rapidfuzz.token_set_ratio(canonical, candidate.canonical_name)`
-   and take a weighted blend with the RRF score -> final `combined_score ∈ [0, 1]`.
+3. Fuse the two lists via Reciprocal Rank Fusion, normalized against the
+   *theoretical* RRF maximum (rank-1 in every list) so the score reflects
+   absolute retrieval strength rather than mere rank within this result set.
+4. Rerank the top-N by a kind-aware name similarity (surname-gated for people,
+   `token_set_ratio` otherwise) and take a weighted blend with the RRF score
+   -> final `combined_score ∈ [0, 1]`.
 5. Route:
     * >= AUTO_MERGE_THRESHOLD (0.88)  -> auto-merge, add alias
     * >= DISAMBIGUATE_THRESHOLD (0.70) -> LLM disambiguation call
@@ -61,17 +64,64 @@ def _rrf(
 
 def _normalize_rrf(
     fused: dict[str, tuple[Candidate, float]],
+    num_lists: int,
+    k: int,
 ) -> list[tuple[Candidate, float]]:
+    """Normalize fused RRF scores against the *theoretical maximum*.
+
+    The theoretical max is the score of a candidate ranked #1 in every
+    contributing list: ``num_lists * 1/(k+1)``. Normalizing against this
+    fixed ceiling (instead of the observed max) means the returned score is
+    an *absolute* measure of retrieval strength — a weak top hit stays low.
+
+    Normalizing against the observed max (the previous behaviour) forced the
+    best candidate to 1.0 no matter how poor the match, so a candidate that
+    merely shared a token (e.g. the given name "Donald") sailed through the
+    auto-merge gate. ``num_lists`` counts only the retrievers that actually
+    returned something, so a down/empty retriever doesn't permanently cap the
+    achievable score.
+    """
     if not fused:
         return []
-    max_score = max(s for _, s in fused.values())
-    if max_score <= 0:
+    theoretical_max = num_lists * (1.0 / (k + 1)) if num_lists > 0 else 0.0
+    if theoretical_max <= 0:
         return [(c, 0.0) for c, _ in fused.values()]
     return sorted(
-        [(c, s / max_score) for c, s in fused.values()],
+        [(c, min(s / theoretical_max, 1.0)) for c, s in fused.values()],
         key=lambda x: x[1],
         reverse=True,
     )
+
+
+def _surname(name: str) -> str:
+    """Last whitespace-delimited token, lowercased — the distinguishing token
+    for a person ("Donald Trump" -> "trump"). Empty for blank input."""
+    tokens = name.strip().split()
+    return tokens[-1].lower() if tokens else ""
+
+
+def _name_similarity(mention: str, candidate_form: str, kind: EntityKind) -> float:
+    """Kind-aware fuzzy name similarity in [0, 100].
+
+    `token_set_ratio` over-credits people who merely share a given name
+    ("Donald Trump" vs "Donald Tusk" -> 78 on the shared "Donald"). For PERSON
+    entities we additionally require the *surname* — the distinguishing token —
+    to match: if the surnames disagree, the pair cannot be the same person
+    regardless of the shared given name, so the score is capped at the (low)
+    surname similarity, pulling it out of the merge band. Non-person kinds keep
+    the plain token-set behaviour.
+    """
+    base = fuzz.token_set_ratio(mention, candidate_form)
+    if kind is not EntityKind.PERSON:
+        return base
+    m_sur = _surname(mention)
+    c_sur = _surname(candidate_form)
+    if not m_sur or not c_sur:
+        return base
+    surname_sim = fuzz.ratio(m_sur, c_sur)
+    if surname_sim < get_settings().surname_match_min:
+        return min(base, surname_sim)
+    return base
 
 
 def _rerank(
@@ -81,14 +131,16 @@ def _rerank(
 ) -> list[tuple[Candidate, float, float]]:
     """Return [(candidate, rrf_norm, combined_score)] sorted by combined_score desc.
 
-    combined_score = 0.5 * rrf_norm + 0.5 * (fuzz_score / 100)
-    fuzz_score = max(token_set_ratio(mention, canonical_name | alias))
+    combined_score = 0.5 * rrf_norm + 0.5 * (name_sim / 100)
+    name_sim = max over (canonical_name | aliases) of `_name_similarity`,
+    which is surname-gated for PERSON candidates.
     """
     out: list[tuple[Candidate, float, float]] = []
     for cand, rrf in candidates[:top_n]:
         pool = [cand.canonical_name, *cand.aliases]
         best_fuzz = max(
-            fuzz.token_set_ratio(mention, candidate_form) for candidate_form in pool
+            _name_similarity(mention, candidate_form, cand.kind)
+            for candidate_form in pool
         )
         combined = 0.5 * rrf + 0.5 * (best_fuzz / 100.0)
         out.append((cand, rrf, combined))
@@ -110,7 +162,10 @@ def find_candidates(
     lx = lucene_search.search_candidates(client, kind, mention_canonical)
     vx = vector_search.search_candidates(client, kind, mention_embedding)
     settings = get_settings()
-    return _normalize_rrf(_rrf([lx, vx], k=settings.rrf_k))
+    ranked_lists = [lx, vx]
+    fused = _rrf(ranked_lists, k=settings.rrf_k)
+    num_lists = sum(1 for lst in ranked_lists if lst)
+    return _normalize_rrf(fused, num_lists=num_lists, k=settings.rrf_k)
 
 
 def link_mention(
