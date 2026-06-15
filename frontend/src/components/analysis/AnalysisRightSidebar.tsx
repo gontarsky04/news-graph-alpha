@@ -11,14 +11,12 @@ interface AnalysisRightSidebarProps {
   selectedNode: GraphNode | null;
   selectedArticle: Article | null;
   connections: NodeConnection[];
-  analysisArticles: Article[];
 }
 
 export default function AnalysisRightSidebar({
   selectedNode,
   selectedArticle,
   connections,
-  analysisArticles,
 }: AnalysisRightSidebarProps) {
   return (
     <aside className="sidebar right-sidebar">
@@ -79,20 +77,6 @@ export default function AnalysisRightSidebar({
           <p className="sidebar-empty">Click a node to inspect it and see relationship types</p>
         </div>
       )}
-
-      <div className="sidebar-section">
-        <div className="sidebar-header">
-          <h3>LOADED ARTICLES</h3>
-        </div>
-        <ul className="file-list">
-          {analysisArticles.map((article) => (
-            <li key={article.id}>
-              📄 {article.title}
-              <span className="article-meta">{article.status}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
     </aside>
   );
 }

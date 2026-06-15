@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import { fetchArticles, fetchGraph } from "../api/client";
 import AnalysisLeftSidebar from "../components/analysis/AnalysisLeftSidebar";
 import AnalysisRightSidebar from "../components/analysis/AnalysisRightSidebar";
+import AnalysisMeta from "../components/AnalysisMeta";
+import SaveSnapshotModal from "../components/dashboard/SaveSnapshotModal";
 import Navbar from "../components/layout/Navbar";
 import Graph from "../Graph";
 import { useAnalyses } from "../hooks/useAnalyses";
@@ -25,7 +27,8 @@ const defaultFilters = (): GraphFilters => ({
 export default function AnalysisPage() {
   const { id } = useParams<{ id: string }>();
   const { getAnalysis, createSnapshot } = useAnalyses();
-  const analysis = id === "global" ? null : getAnalysis(id ?? "");
+  const analysis = getAnalysis(id ?? "");
+  const isValidAnalysis = Boolean(id && id !== "global" && analysis);
 
   const [graphData, setGraphData] = useState<GraphData>(emptyGraph);
   const [articles, setArticles] = useState<Article[]>([]);
@@ -35,6 +38,7 @@ export default function AnalysisPage() {
   const [search, setSearch] = useState("");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [showSaveSnapshot, setShowSaveSnapshot] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -60,12 +64,12 @@ export default function AnalysisPage() {
   }, [refresh]);
 
   const analysisArticles = useMemo(() => {
-    if (!analysis) return articles.filter((a) => a.status === "DONE");
+    if (!analysis) return [];
     return articles.filter((a) => analysis.articleIds.includes(a.id));
   }, [analysis, articles]);
 
   const displayGraph = useMemo(() => {
-    if (!analysis) return graphData;
+    if (!analysis) return emptyGraph;
     return filterGraphByArticleIds(
       graphData,
       analysis.articleIds.filter((articleId) =>
@@ -147,35 +151,50 @@ export default function AnalysisPage() {
     });
   };
 
-  const title =
-    id === "global" ? "Global graph" : analysis?.name ?? "Analysis";
+  const title = analysis?.name ?? "Analysis";
+
+  const parentAnalysisId =
+    analysis?.isSnapshot && analysis.parentAnalysisId
+      ? analysis.parentAnalysisId
+      : analysis?.id;
+
+  const handleSaveSnapshot = (name: string) => {
+    if (!analysis || !parentAnalysisId) return;
+    const articleIds = analysisArticles.map((a) => a.id);
+    createSnapshot(name, articleIds, parentAnalysisId);
+    setShowSaveSnapshot(false);
+  };
+
+  if (!isValidAnalysis || !analysis) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="app-layout">
       <Navbar
         variant="analysis"
+        readOnly={analysis.isSnapshot}
         searchValue={search}
         onSearchChange={setSearch}
-        onSaveSnapshot={() => {
-          const articleIds = analysisArticles.map((a) => a.id);
-          createSnapshot(`Snapshot ${new Date().toLocaleString()}`, articleIds);
-          alert("Snapshot saved — visible on dashboard sidebar");
-        }}
+        onSaveSnapshot={() => setShowSaveSnapshot(true)}
         onCreateNode={() => alert("Create node — coming soon")}
       />
       {error ? <div className="banner banner--error">{error}</div> : null}
 
       <div className="analysis-title-bar">
         <h1>{title}</h1>
-        <span>
-          {analysisArticles.length} articles · {displayGraph.nodes.length} nodes
-        </span>
+        <AnalysisMeta
+          className="analysis-title-bar__meta"
+          articleCount={analysisArticles.length}
+          nodeCount={displayGraph.nodes.length}
+        />
       </div>
 
       <div className="main-content">
         <AnalysisLeftSidebar
           filters={filters}
           availableRelationshipTypes={availableRelationshipTypes}
+          analysisArticles={analysisArticles}
           onToggleNodeType={toggleNodeType}
           onToggleRelType={toggleRelType}
         />
@@ -195,9 +214,15 @@ export default function AnalysisPage() {
           selectedNode={selectedNode}
           selectedArticle={selectedArticle}
           connections={selectedConnections}
-          analysisArticles={analysisArticles}
         />
       </div>
+
+      {showSaveSnapshot && !analysis.isSnapshot ? (
+        <SaveSnapshotModal
+          onClose={() => setShowSaveSnapshot(false)}
+          onSave={handleSaveSnapshot}
+        />
+      ) : null}
     </div>
   );
 }

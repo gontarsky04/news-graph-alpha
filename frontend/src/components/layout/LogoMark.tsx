@@ -1,0 +1,27 @@
+interface LogoMarkProps {
+  className?: string;
+}
+
+export default function LogoMark({ className }: LogoMarkProps) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+    >
+      <g stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7.5 22.5 12.5 12.5" />
+        <path d="M12.5 12.5 16.5 15.5" />
+        <path d="M16.5 15.5 24.5 7.5" />
+        <path d="M16.5 15.5 24.5 22.5" />
+        <circle cx="7.5" cy="22.5" r="3" />
+        <circle cx="12.5" cy="12.5" r="3" />
+        <circle cx="16.5" cy="15.5" r="3" />
+        <circle cx="24.5" cy="7.5" r="3" />
+        <circle cx="24.5" cy="22.5" r="3" />
+      </g>
+    </svg>
+  );
+}

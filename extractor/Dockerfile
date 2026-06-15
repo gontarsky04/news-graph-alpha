@@ -43,7 +43,7 @@ COPY proto ./proto
 
 # Install the project itself
 RUN uv sync --no-dev || uv sync
-
+RUN apt-get update && apt-get install -y dos2unix && dos2unix scripts/gen_grpc.sh
 # Generate gRPC stubs from the proto into src/newsgraph/grpcgen/
 RUN uv run bash scripts/gen_grpc.sh
 
