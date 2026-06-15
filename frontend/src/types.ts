@@ -50,6 +50,8 @@ export interface Analysis {
   articleIds: string[];
   createdAt: string;
   isSnapshot?: boolean;
+  /** Set when isSnapshot — the analysis this snapshot was saved from */
+  parentAnalysisId?: string;
 }
 
 export interface GraphFilters {

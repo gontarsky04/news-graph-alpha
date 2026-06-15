@@ -45,18 +45,21 @@ export default function ArticlesPanel({
   return (
     <section className="dashboard-panel">
       <div className="panel-header">
-        <h2>Articles</h2>
-        <ArticleUploadButton
-          uploading={uploading}
-          onUpload={onUploadFiles}
-          variant="inline"
-        />
+        <div className="panel-header__intro">
+          <h2>Articles</h2>
+          <p className="panel-header__subtitle">
+            Wgraj plik JSON z artykułem lub listą artykułów (pola <code>title</code>,{" "}
+            <code>body</code> itd.). Możesz też wybrać kilka plików naraz.
+          </p>
+        </div>
+        <div className="panel-header__actions">
+          <ArticleUploadButton
+            uploading={uploading}
+            onUpload={onUploadFiles}
+            variant="inline"
+          />
+        </div>
       </div>
-
-      <p className="panel-hint">
-        Wgraj plik JSON z artykułem lub listą artykułów (pola <code>title</code>,{" "}
-        <code>body</code> itd.). Możesz też wybrać kilka plików naraz.
-      </p>
 
       <div className="panel-grid">
         <div className="panel-list">

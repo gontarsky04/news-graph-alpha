@@ -26,9 +26,9 @@ export const newsGraphTheme: Theme = {
       radius: 2,
     },
     subLabel: {
-      color: "#64748b",
+      color: "#94a3b8",
       stroke: "#0b1120",
-      activeColor: ACCENT,
+      activeColor: "#94a3b8",
     },
   },
   ring: {
@@ -36,16 +36,16 @@ export const newsGraphTheme: Theme = {
     activeFill: ACCENT,
   },
   edge: {
-    fill: "#334155",
+    fill: "#64748b",
     activeFill: "#64748b",
     opacity: 0.55,
-    selectedOpacity: 0.85,
+    selectedOpacity: 0.55,
     inactiveOpacity: 0.06,
     label: {
-      color: "#64748b",
+      color: "#94a3b8",
       stroke: "#0b1120",
-      activeColor: "#94a3b8",
-      fontSize: 5,
+      activeColor: "#e2e8f0",
+      fontSize: 6,
     },
     subLabel: {
       color: "#475569",
@@ -55,7 +55,7 @@ export const newsGraphTheme: Theme = {
     },
   },
   arrow: {
-    fill: "#475569",
+    fill: "#94a3b8",
     activeFill: "#94a3b8",
   },
   lasso: {
@@ -87,14 +87,69 @@ export function getNodeColor(type: string): string {
   return TYPE_COLORS[type] ?? "#94a3b8";
 }
 
+/** Brighten a hex color while keeping its hue — used for selection instead of a flat accent. */
+export function intensifyNodeColor(hex: string, amount = 1.22): string {
+  const normalized = hex.replace("#", "");
+  const r = parseInt(normalized.slice(0, 2), 16) / 255;
+  const g = parseInt(normalized.slice(2, 4), 16) / 255;
+  const b = parseInt(normalized.slice(4, 6), 16) / 255;
+  const brighten = (channel: number) =>
+    Math.min(1, channel * amount + (1 - channel) * 0.12);
+
+  const toHex = (channel: number) =>
+    Math.round(brighten(channel) * 255)
+      .toString(16)
+      .padStart(2, "0");
+
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
 export function getNodeSubLabel(type: string): string {
   return TYPE_LABELS[type] ?? type;
 }
 
-/** Keep labels short so they don't dominate the layout */
-export function formatNodeLabel(name: string, maxLength = 14): string {
-  if (name.length <= maxLength) return name;
-  return `${name.slice(0, maxLength - 1)}…`;
+export function formatRelationshipLabel(type: string): string {
+  return type.replace(/_/g, " ");
+}
+
+export interface NodeLabelDisplay {
+  text: string;
+  fontSize: number;
+}
+
+const LONG_NAME_CHARS = 18;
+const NODE_LABEL_FONT = 6;
+const NODE_LABEL_FONT_SMALL = 5;
+
+/** Wrap long names onto two lines and use a smaller font so the full name stays visible. */
+export function formatNodeLabelDisplay(name: string): NodeLabelDisplay {
+  const trimmed = name.trim();
+  if (trimmed.length <= LONG_NAME_CHARS) {
+    return { text: trimmed, fontSize: NODE_LABEL_FONT };
+  }
+
+  const words = trimmed.split(/\s+/);
+  if (words.length >= 2) {
+    const target = Math.ceil(trimmed.length / 2);
+    let firstLine = words[0];
+    let index = 1;
+
+    while (index < words.length - 1) {
+      const next = `${firstLine} ${words[index]}`;
+      if (next.length >= target) break;
+      firstLine = next;
+      index += 1;
+    }
+
+    const secondLine = words.slice(index).join(" ");
+    return { text: `${firstLine}\n${secondLine}`, fontSize: NODE_LABEL_FONT_SMALL };
+  }
+
+  const mid = Math.ceil(trimmed.length / 2);
+  return {
+    text: `${trimmed.slice(0, mid)}\n${trimmed.slice(mid)}`,
+    fontSize: NODE_LABEL_FONT_SMALL,
+  };
 }
 
 /** Reagraph size units — keep nodes compact and even (reagraph-test) */

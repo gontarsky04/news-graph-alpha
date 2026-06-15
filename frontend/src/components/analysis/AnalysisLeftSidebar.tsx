@@ -1,8 +1,10 @@
-import { ENTITY_TYPES, type GraphFilters } from "../../types";
+import { formatRelationshipLabel } from "../../reagraphTheme";
+import { ENTITY_TYPES, type Article, type GraphFilters } from "../../types";
 
 interface AnalysisLeftSidebarProps {
   filters: GraphFilters;
   availableRelationshipTypes: string[];
+  analysisArticles: Article[];
   onToggleNodeType: (type: string) => void;
   onToggleRelType: (type: string) => void;
 }
@@ -10,16 +12,22 @@ interface AnalysisLeftSidebarProps {
 export default function AnalysisLeftSidebar({
   filters,
   availableRelationshipTypes,
+  analysisArticles,
   onToggleNodeType,
   onToggleRelType,
 }: AnalysisLeftSidebarProps) {
   return (
     <aside className="sidebar left-sidebar">
       <div className="sidebar-section">
-        <h3>DATA SOURCE</h3>
-        <select className="dropdown" defaultValue="neo4j">
-          <option value="neo4j">Neo4j Knowledge Graph</option>
-        </select>
+        <h3>LOADED ARTICLES</h3>
+        <ul className="file-list">
+          {analysisArticles.map((article) => (
+            <li key={article.id}>
+              📄 {article.title}
+              <span className="article-meta">{article.status}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="sidebar-section">
@@ -45,7 +53,7 @@ export default function AnalysisLeftSidebar({
               checked={filters.relationshipTypes.has(type)}
               onChange={() => onToggleRelType(type)}
             />{" "}
-            {type}
+            {formatRelationshipLabel(type)}
           </label>
         ))}
       </div>

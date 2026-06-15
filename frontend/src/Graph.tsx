@@ -4,16 +4,18 @@ import {
   edgeKey,
   getInitialRevealedEdges,
   getNeighborhoodIds,
+  getSelectionActives,
   isPrimaryNode,
 } from "./graphTheme";
 import {
-  formatNodeLabel,
+  formatRelationshipLabel,
   getNodeColor,
-  getNodeSubLabel,
   newsGraphTheme,
   reagraphNodeSize,
   TYPE_COLORS,
 } from "./reagraphTheme";
+import { renderGraphNode } from "./GraphNodeMesh";
+import GraphRenderLayers from "./GraphRenderLayers";
 import type { GraphData, GraphFilters } from "./types";
 
 interface GraphProps {
@@ -69,10 +71,27 @@ export default function Graph({
     });
   }, [focusNodeId, filteredData.relationships, onNodeSelect]);
 
+  const revealEdgesForNode = useCallback(
+    (nodeId: string) => {
+      setRevealedEdges((prev) => {
+        const next = new Set(prev);
+        filteredData.relationships.forEach((rel, index) => {
+          if (rel.from === nodeId || rel.to === nodeId) {
+            next.add(edgeKey(rel.from, rel.to, index));
+          }
+        });
+        return next;
+      });
+    },
+    [filteredData.relationships]
+  );
+
   const actives = useMemo(
     () =>
-      selectedId ? getNeighborhoodIds(selectedId, filteredData) : undefined,
-    [selectedId, filteredData]
+      selectedId
+        ? getSelectionActives(selectedId, filteredData, revealedEdges)
+        : undefined,
+    [selectedId, filteredData, revealedEdges]
   );
 
   const activeSet = useMemo(
@@ -92,20 +111,14 @@ export default function Graph({
             node.id === selectedId ||
             (focusNodeId != null && node.id === focusNodeId)
         )
-        .map((node) => {
-          const isFocused = !activeSet || activeSet.has(node.id);
-          const isSelected = selectedId === node.id;
-
-          return {
-            id: node.id,
-            label: formatNodeLabel(node.name),
-            subLabel: isSelected ? getNodeSubLabel(node.type) : undefined,
-            fill: getNodeColor(node.type),
-            size: reagraphNodeSize(node.relevancy),
-            labelVisible: isFocused,
-            data: node,
-          };
-        }),
+        .map((node) => ({
+          id: node.id,
+          label: "",
+          fill: getNodeColor(node.type),
+          size: reagraphNodeSize(node.relevancy),
+          labelVisible: false,
+          data: node,
+        })),
     [activeSet, filteredData.nodes, focusNodeId, selectedId]
   );
 
@@ -114,23 +127,30 @@ export default function Graph({
   const edges = useMemo(
     () =>
       filteredData.relationships
-        .map((rel, index) => ({
-          id: `e-${index}`,
-          source: rel.from,
-          target: rel.to,
-          label: rel.type,
-          interpolation: "curved" as const,
-          size: 1,
-          key: edgeKey(rel.from, rel.to, index),
-        }))
-        .filter(
-          (edge) =>
-            revealedEdges.has(edge.key) &&
-            visibleNodeIds.has(edge.source) &&
-            visibleNodeIds.has(edge.target)
-        )
-        .map(({ key: _key, ...edge }) => edge),
-    [filteredData.relationships, revealedEdges, visibleNodeIds]
+        .map((rel, index) => {
+          const key = edgeKey(rel.from, rel.to, index);
+          if (!revealedEdges.has(key)) return null;
+          if (!visibleNodeIds.has(rel.from) || !visibleNodeIds.has(rel.to)) {
+            return null;
+          }
+
+          const isNeighborEdge =
+            selectedId != null &&
+            (rel.from === selectedId || rel.to === selectedId);
+
+          return {
+            id: `e-${index}`,
+            source: rel.from,
+            target: rel.to,
+            interpolation: "curved" as const,
+            size: 1,
+            ...(isNeighborEdge
+              ? { label: formatRelationshipLabel(rel.type) }
+              : {}),
+          };
+        })
+        .filter((edge): edge is NonNullable<typeof edge> => edge != null),
+    [filteredData.relationships, revealedEdges, selectedId, visibleNodeIds]
   );
 
   // Reagraph lays out asynchronously; one delayed fit avoids an empty camera box.
@@ -153,17 +173,9 @@ export default function Graph({
 
   const handleNodeDoubleClick = useCallback(
     (node: { id: string }) => {
-      setRevealedEdges((prev) => {
-        const next = new Set(prev);
-        filteredData.relationships.forEach((rel, index) => {
-          if (rel.from === node.id || rel.to === node.id) {
-            next.add(edgeKey(rel.from, rel.to, index));
-          }
-        });
-        return next;
-      });
+      revealEdgesForNode(node.id);
     },
-    [filteredData.relationships]
+    [revealEdgesForNode]
   );
 
   if (filteredData.nodes.length === 0) {
@@ -194,10 +206,11 @@ export default function Graph({
         edges={edges}
         theme={newsGraphTheme}
         layoutType="radialOut2d"
-        labelType="auto"
-        edgeLabelPosition="natural"
+        labelType="all"
+        edgeLabelPosition="inline"
         edgeInterpolation="curved"
         edgeArrowPosition="end"
+        renderNode={renderGraphNode}
         animated
         draggable
         selections={selectedId ? [selectedId] : []}
@@ -205,13 +218,16 @@ export default function Graph({
         onNodeClick={(node) => {
           setSelectedId(node.id);
           onNodeSelect?.(node.id);
+          revealEdgesForNode(node.id);
         }}
         onNodeDoubleClick={handleNodeDoubleClick}
         onCanvasClick={() => {
           setSelectedId(null);
           onNodeSelect?.(null);
         }}
-      />
+      >
+        <GraphRenderLayers />
+      </GraphCanvas>
 
       <div className="graph-legend" aria-label="Entity type legend">
         <span className="graph-legend__title">Entity types</span>
@@ -221,10 +237,6 @@ export default function Graph({
             {type}
           </span>
         ))}
-      </div>
-
-      <div className="graph-hint">
-        Click to focus · Double-click to reveal connections
       </div>
     </div>
   );

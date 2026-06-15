@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { deleteArticle as deleteArticleApi, fetchArticles, retryArticle, uploadArticle } from "../api/client";
+import { deleteArticle as deleteArticleApi, fetchArticles, fetchGraph, retryArticle, uploadArticle } from "../api/client";
 import { AnalysesPanel } from "../components/dashboard/AnalysesPanel";
 import ArticlesPanel from "../components/dashboard/ArticlesPanel";
 import { ConfirmDeleteModal } from "../components/dashboard/ConfirmDeleteModal";
 import CreateAnalysisModal from "../components/dashboard/CreateAnalysisModal";
-import SnapshotsSidebar from "../components/dashboard/SnapshotsSidebar";
 import Navbar from "../components/layout/Navbar";
 import { useAnalyses } from "../hooks/useAnalyses";
-import type { Analysis, Article, ArticleUpload } from "../types";
+import type { Analysis, Article, ArticleUpload, GraphData } from "../types";
 
 type DashboardTab = "analyses" | "articles";
+
+const emptyGraph: GraphData = { nodes: [], relationships: [] };
 
 type DeleteTarget =
   | { kind: "article"; item: Article }
@@ -28,6 +29,7 @@ export default function DashboardPage() {
     removeArticleFromAnalyses,
   } = useAnalyses();
   const [articles, setArticles] = useState<Article[]>([]);
+  const [graphData, setGraphData] = useState<GraphData>(emptyGraph);
   const [tab, setTab] = useState<DashboardTab>("analyses");
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null);
   const [showCreateAnalysis, setShowCreateAnalysis] = useState(false);
@@ -37,6 +39,18 @@ export default function DashboardPage() {
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
+  const filteredAnalyses = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return analyses;
+    return analyses.filter((a) => a.name.toLowerCase().includes(q));
+  }, [analyses, search]);
+
+  const filteredArticles = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return articles;
+    return articles.filter((a) => a.title.toLowerCase().includes(q));
+  }, [articles, search]);
 
   const refreshArticles = useCallback(async () => {
     try {
@@ -48,6 +62,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void refreshArticles();
+    void fetchGraph()
+      .then(setGraphData)
+      .catch(() => setGraphData(emptyGraph));
   }, [refreshArticles]);
 
   const handleUpload = useCallback(
@@ -161,13 +178,7 @@ export default function DashboardPage() {
 
   return (
     <div className="app-layout">
-      <Navbar
-        variant="dashboard"
-        searchValue={search}
-        onSearchChange={setSearch}
-        uploading={uploading}
-        onUploadArticles={(files) => void handleUpload(files)}
-      />
+      <Navbar variant="dashboard" searchValue={search} onSearchChange={setSearch} />
       {error ? <div className="banner banner--error">{error}</div> : null}
       {uploading || retryingId ? (
         <div className="banner banner--info">
@@ -178,53 +189,51 @@ export default function DashboardPage() {
       ) : null}
 
       <div className="dashboard-layout">
-        <SnapshotsSidebar
-          analyses={
-            search
-              ? analyses.filter((a) =>
-                  a.name.toLowerCase().includes(search.toLowerCase())
-                )
-              : analyses
-          }
-          onDeleteSnapshot={(snapshot) =>
-            setDeleteTarget({ kind: "snapshot", item: snapshot })
-          }
-        />
-
         <div className="dashboard-main">
           <div className="dashboard-tabs">
-            <button
-              type="button"
-              className={`dashboard-tab ${tab === "analyses" ? "dashboard-tab--active" : ""}`}
-              onClick={() => setTab("analyses")}
-            >
-              Analyses
-            </button>
-            <button
-              type="button"
-              className={`dashboard-tab ${tab === "articles" ? "dashboard-tab--active" : ""}`}
-              onClick={() => setTab("articles")}
-            >
-              Articles
-            </button>
+            <div className="dashboard-tabs__group" role="tablist" aria-label="Dashboard sections">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "analyses"}
+                className={`dashboard-tab ${tab === "analyses" ? "dashboard-tab--active" : ""}`}
+                onClick={() => setTab("analyses")}
+              >
+                Analyses
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "articles"}
+                className={`dashboard-tab ${tab === "articles" ? "dashboard-tab--active" : ""}`}
+                onClick={() => setTab("articles")}
+              >
+                Articles
+              </button>
+            </div>
           </div>
 
           {tab === "analyses" ? (
             <AnalysesPanel
-              analyses={analyses}
+              analyses={filteredAnalyses.filter((a) => !a.isSnapshot)}
+              allAnalyses={analyses}
               articles={articles}
+              graphData={graphData}
               onNewAnalysis={() => setShowCreateAnalysis(true)}
               onCopyAnalysis={copyAnalysis}
               onUpdateAnalysis={updateAnalysis}
               onDeleteAnalysis={(analysis) =>
                 setDeleteTarget({ kind: "analysis", item: analysis })
               }
+              onDeleteSnapshot={(snapshot) =>
+                setDeleteTarget({ kind: "snapshot", item: snapshot })
+              }
               selectedAnalysisId={selectedAnalysisId}
               onSelectAnalysis={setSelectedAnalysisId}
             />
           ) : (
             <ArticlesPanel
-              articles={articles}
+              articles={filteredArticles}
               uploading={uploading}
               retryingId={retryingId}
               onUploadFiles={(files) => void handleUpload(files)}

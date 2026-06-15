@@ -70,3 +70,21 @@ export function getNeighborhoodIds(
 
   return [...ids];
 }
+
+/** Node + incident edge ids for reagraph focus (keeps neighbor edges at full opacity). */
+export function getSelectionActives(
+  nodeId: string,
+  data: GraphData,
+  revealedEdges: Set<string>
+): string[] {
+  const ids = getNeighborhoodIds(nodeId, data);
+
+  data.relationships.forEach((rel, index) => {
+    if (rel.from !== nodeId && rel.to !== nodeId) return;
+    const key = edgeKey(rel.from, rel.to, index);
+    if (!revealedEdges.has(key)) return;
+    ids.push(`e-${index}`);
+  });
+
+  return ids;
+}

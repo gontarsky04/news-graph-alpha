@@ -34,17 +34,21 @@ export function useAnalyses() {
     return analysis;
   }, []);
 
-  const createSnapshot = useCallback((name: string, articleIds: string[]) => {
-    const snapshot: Analysis = {
-      id: `snapshot-${Date.now()}`,
-      name,
-      articleIds,
-      createdAt: new Date().toISOString(),
-      isSnapshot: true,
-    };
-    setAnalyses((prev) => [snapshot, ...prev]);
-    return snapshot;
-  }, []);
+  const createSnapshot = useCallback(
+    (name: string, articleIds: string[], parentAnalysisId: string) => {
+      const snapshot: Analysis = {
+        id: `snapshot-${Date.now()}`,
+        name,
+        articleIds,
+        createdAt: new Date().toISOString(),
+        isSnapshot: true,
+        parentAnalysisId,
+      };
+      setAnalyses((prev) => [snapshot, ...prev]);
+      return snapshot;
+    },
+    []
+  );
 
   const copyAnalysis = useCallback((id: string) => {
     const source = analyses.find((a) => a.id === id);
@@ -75,7 +79,9 @@ export function useAnalyses() {
   );
 
   const deleteAnalysis = useCallback((id: string) => {
-    setAnalyses((prev) => prev.filter((a) => a.id !== id));
+    setAnalyses((prev) =>
+      prev.filter((a) => a.id !== id && a.parentAnalysisId !== id)
+    );
   }, []);
 
   const removeArticleFromAnalyses = useCallback((articleId: string) => {
