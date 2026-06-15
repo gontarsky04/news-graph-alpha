@@ -102,14 +102,24 @@ export default function Graph({
     [selectedId, filteredData]
   );
 
+  const connectedNodeIds = useMemo(() => {
+    const ids = new Set<string>();
+    filteredData.relationships.forEach((r) => {
+      ids.add(r.from);
+      ids.add(r.to);
+    });
+    return ids;
+  }, [filteredData.relationships]);
+
   const nodes = useMemo(
     () =>
       filteredData.nodes
         .filter(
           (node) =>
-            isPrimaryNode(node.relevancy) ||
-            node.id === selectedId ||
-            (focusNodeId != null && node.id === focusNodeId)
+            connectedNodeIds.has(node.id) &&
+            (isPrimaryNode(node.relevancy) ||
+              node.id === selectedId ||
+              (focusNodeId != null && node.id === focusNodeId))
         )
         .map((node) => ({
           id: node.id,
@@ -119,7 +129,7 @@ export default function Graph({
           labelVisible: false,
           data: node,
         })),
-    [activeSet, filteredData.nodes, focusNodeId, selectedId]
+    [activeSet, connectedNodeIds, filteredData.nodes, focusNodeId, selectedId]
   );
 
   const visibleNodeIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);

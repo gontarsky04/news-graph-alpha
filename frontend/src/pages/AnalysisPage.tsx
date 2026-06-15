@@ -19,8 +19,11 @@ import { filterGraphByArticleIds } from "../utils/graphFilter";
 
 const emptyGraph: GraphData = { nodes: [], relationships: [] };
 
+const defaultNodeTypes = () =>
+  new Set(ENTITY_TYPES.filter((type) => type !== "Article"));
+
 const defaultFilters = (): GraphFilters => ({
-  nodeTypes: new Set(ENTITY_TYPES),
+  nodeTypes: defaultNodeTypes(),
   relationshipTypes: new Set<string>(),
 });
 
@@ -49,7 +52,7 @@ export default function AnalysisPage() {
       setArticles(articleList);
       const relTypes = [...new Set(graph.relationships.map((r) => r.type))];
       setFilters({
-        nodeTypes: new Set(ENTITY_TYPES),
+        nodeTypes: defaultNodeTypes(),
         relationshipTypes: new Set(relTypes),
       });
     } catch (err) {
@@ -81,7 +84,7 @@ export default function AnalysisPage() {
   useEffect(() => {
     const relTypes = [...new Set(displayGraph.relationships.map((r) => r.type))];
     setFilters({
-      nodeTypes: new Set(ENTITY_TYPES),
+      nodeTypes: defaultNodeTypes(),
       relationshipTypes: new Set(relTypes),
     });
   }, [displayGraph, id]);
@@ -194,7 +197,6 @@ export default function AnalysisPage() {
         <AnalysisLeftSidebar
           filters={filters}
           availableRelationshipTypes={availableRelationshipTypes}
-          analysisArticles={analysisArticles}
           onToggleNodeType={toggleNodeType}
           onToggleRelType={toggleRelType}
         />

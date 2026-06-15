@@ -260,6 +260,26 @@ body,
   overflow-y: auto;
 }
 
+/* Let the relationships list fill the right sidebar's full height. */
+.right-sidebar .sidebar-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.right-sidebar .connections-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.right-sidebar .connections-list ul {
+  flex: 1;
+  max-height: none;
+}
+
 .connections-list li {
   font-size: 0.8rem;
   padding: 6px 0;
